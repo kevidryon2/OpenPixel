@@ -70,12 +70,12 @@ void handleKey(int key) {
     move_amount/=2;
     break;
   case KEY_O:
-    px = GetRandomValue(0,16);
+    px = GetRandomValue(0,IMAGESIZE);
     break;
   case KEY_R:
-    px = GetRandomValue(0,16);
+    px = GetRandomValue(0,IMAGESIZE);
   case KEY_P:
-    py = GetRandomValue(0,16);
+    py = GetRandomValue(0,IMAGESIZE);
     break;
   case KEY_N:
     recording = !recording;
@@ -208,7 +208,7 @@ void draw() {
 }
 
 int main() {
-	InitWindow(768,256,"OpenPixel v0.11");
+	InitWindow(768,256,"OpenPixel v0.11p1");
 	SetTargetFPS(60);
 
 	while (!WindowShouldClose()) {
