@@ -12,12 +12,17 @@ bool recording;
 
 int IMAGESIZE = 8;
 
+unsigned char colorset[8];
+
 unsigned char seltile = 0;
 
 unsigned char selcolor = 0;
 
 unsigned int move_amount = 1;
-
+/*
+unsigned char map[256][256];
+unsigned char mapwx, mapwy, mapx, mapy;
+*/
 unsigned int tiles[257][MAXIMAGESIZE][MAXIMAGESIZE]; //Last image is clipboard image
 
 bool mirrored_mode = false;
@@ -37,6 +42,15 @@ void handleKey(int key) {
     case KEY_RIGHT:
       seltile++;
       break;
+  case KEY_ONE:
+  case KEY_TWO:
+  case KEY_THREE:
+  case KEY_FOUR:
+  case KEY_FIVE:
+  case KEY_SIX:
+  case KEY_SEVEN:
+      case KEY_EIGHT:
+    selcolor = colorset[key-KEY_ONE];
     }
   } else {
   switch (key) {
@@ -60,14 +74,8 @@ void handleKey(int key) {
   case KEY_Q:
     move_amount++;
     break;
-  case KEY_A:
-    move_amount*=2;
-    break;
   case KEY_W:
     move_amount--;
-    break;
-  case KEY_S:
-    move_amount/=2;
     break;
   case KEY_O:
     px = GetRandomValue(0,IMAGESIZE);
@@ -84,18 +92,29 @@ void handleKey(int key) {
   case KEY_B:
     selcolor = GetRandomValue(0, 255);
     break;
-  case KEY_K:
+  case KEY_J:
     selcolor=(selcolor-1)%256;
     break;
-  case KEY_L:
+  case KEY_K:
     selcolor=(selcolor+1)%256;
     break;
+    
   case KEY_U: //Undo
     break;
     
   case KEY_I: //Redo
     break;
     
+  case KEY_S: //Save
+    break;
+    
+  case KEY_L: //Load
+    break;
+  
+  case KEY_E: //Eyedropeer
+    selcolor = tiles[seltile][py][px];
+    break;
+  
   case KEY_KP_ADD: //Shrink sprite
     IMAGESIZE /= 2;
     IMAGESIZE = (IMAGESIZE<8) ? 8 : IMAGESIZE;
@@ -105,7 +124,16 @@ void handleKey(int key) {
     IMAGESIZE *= 2;
     IMAGESIZE = (IMAGESIZE>MAXIMAGESIZE) ? MAXIMAGESIZE : IMAGESIZE;
     break;
-    
+  case KEY_ONE:
+  case KEY_TWO:
+  case KEY_THREE:
+  case KEY_FOUR:
+  case KEY_FIVE:
+  case KEY_SIX:
+  case KEY_SEVEN:
+    case KEY_EIGHT:
+    colorset[key-KEY_ONE] = selcolor;
+    break;
   case KEY_SPACE:
     printf("Executing macro\n");
     for (int i=0; i<macro_size; i++) {
@@ -205,10 +233,13 @@ void draw() {
     }
   }
   DrawRectangleLines(512+(seltile%16)*16, (seltile/16)*16, 16, 16, WHITE);
+  for (int i=0; i<8; i++) {
+    DrawRectangle(i*96, 256, 96, 64, palette[colorset[i]]);
+  }
 }
 
 int main() {
-	InitWindow(768,256,"OpenPixel v0.11p1");
+	InitWindow(768,256+64,"OpenPixel v0.12");
 	SetTargetFPS(60);
 
 	while (!WindowShouldClose()) {
