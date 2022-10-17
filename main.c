@@ -1,10 +1,18 @@
 #include "palette.h"
 #include "raylib.h"
+#include "find.h"
+#include "rle.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int px, py = 0;
 
-#define MAXIMAGESIZE 128
+#define MAXIMAGESIZE 256
 #define IMAGEPIXELSIZE (256/IMAGESIZE)
+
+char CURRENT_VERSION[] = {0x30,0x01}; //pm mM (Stored in big endian)
+#define CURRENT_VERSION_SHORT 0x0130 //Mm mp
 
 int macro[1000];
 int macro_size;
@@ -30,7 +38,38 @@ bool mirrored_mode = false;
 void handleKey(int key) {
   if (IsKeyDown(KEY_LEFT_SHIFT)) {
     switch (key) {
-    case KEY_UP:
+    case KEY_O:
+      for (int x=0; x<MAXIMAGESIZE; x++) {
+        for (int y=0; y<MAXIMAGESIZE; y++) {
+          if (!tiles[seltile][y][x]) {
+            tiles[seltile][y][x] = tiles[256][y][x];
+          }
+        }
+      }
+      break;
+    case KEY_M:
+      for (int x=0; x<MAXIMAGESIZE; x++) {
+        for (int y=0; y<MAXIMAGESIZE; y++) {
+          if (tiles[seltile][y][x]) {
+            tiles[seltile][y][x] = tiles[256][y][x];
+          }
+        }
+      }
+      break;
+    case KEY_D:
+      for (int x=0; x<MAXIMAGESIZE; x++) {
+        for (int y=0; y<MAXIMAGESIZE; y++) {
+          tiles[seltile][y][x] = 0;
+        }
+      }
+      break;
+    case KEY_C:
+      memcpy(tiles[256], tiles[seltile], MAXIMAGESIZE*MAXIMAGESIZE);
+      break;
+      case KEY_V:
+      memcpy(tiles[seltile], tiles[256], MAXIMAGESIZE*MAXIMAGESIZE);
+      break;
+      case KEY_UP:
       seltile-=16;
       break;
     case KEY_DOWN:
@@ -42,6 +81,18 @@ void handleKey(int key) {
     case KEY_RIGHT:
       seltile++;
       break;
+    case KEY_R:;
+      int old_color = tiles[seltile][py][px];
+      int new_color = selcolor;
+      for (int x=0; x<IMAGESIZE; x++) {
+        for (int y=0; y<IMAGESIZE; y++) {
+          if (tiles[seltile][y][x] == old_color) {
+            printf("%d;%d;%d\n",y,x,tiles[seltile][y][x]);
+            tiles[seltile][y][x] = new_color;
+          }
+        }
+      }
+      break;
   case KEY_ONE:
   case KEY_TWO:
   case KEY_THREE:
@@ -50,7 +101,7 @@ void handleKey(int key) {
   case KEY_SIX:
   case KEY_SEVEN:
       case KEY_EIGHT:
-    selcolor = colorset[key-KEY_ONE];
+    colorset[key-KEY_ONE] = selcolor;
     }
   } else {
   switch (key) {
@@ -78,16 +129,17 @@ void handleKey(int key) {
     move_amount--;
     break;
   case KEY_O:
-    px = GetRandomValue(0,IMAGESIZE);
+    px = GetRandomValue(0,IMAGESIZE)-1;
     break;
   case KEY_R:
-    px = GetRandomValue(0,IMAGESIZE);
+    px = GetRandomValue(0,IMAGESIZE)-1;
   case KEY_P:
-    py = GetRandomValue(0,IMAGESIZE);
+    py = GetRandomValue(0,IMAGESIZE)-1;
     break;
   case KEY_N:
     recording = !recording;
     if (recording) macro_size=-1;
+    printf("%d\n", macro_size);
     break;
   case KEY_B:
     selcolor = GetRandomValue(0, 255);
@@ -99,16 +151,67 @@ void handleKey(int key) {
     selcolor=(selcolor+1)%256;
     break;
     
-  case KEY_U: //Undo
+  case KEY_U: //Undo (TODO v0.14)
     break;
     
-  case KEY_I: //Redo
+  case KEY_I: //Redo (TODO v0.14)
     break;
     
-  case KEY_S: //Save
+  case KEY_S:; //Save 
+    FILE *fp = fopen("tileset.kops", "w");
+    //printf("Compressing...\n");
+    int dlen;
+    //const char *cdata = CompressData(tiles, 257*MAXIMAGESIZE*MAXIMAGESIZE, &dlen);
+    printf("Saving...\n");
+    fwrite(&dlen, sizeof(int), 1, fp);
+    fwrite(macro, 1000, 1, fp);
+    fwrite(CURRENT_VERSION, 2, 1, fp);
+    fwrite(tiles, sizeof(tiles), 1, fp);
+    printf("Done! (File size is %ld bytes)\n", ftell(fp));
+    fclose(fp);
+    //free(cdata);
     break;
     
-  case KEY_L: //Load
+  case KEY_L:; //Load
+    FILE *fpa = fopen("tileset.kops", "r");
+    int datalength;
+    short verbuff;
+    printf("Loading...\n");
+    fread(&datalength, sizeof(int), 1, fpa);
+    fread(macro, 1000, 1, fpa);
+    fread(&verbuff, 2, 1, fpa);
+    fread(tiles, sizeof(tiles), 1, fpa);
+    if (verbuff != CURRENT_VERSION_SHORT) {
+      printf("WARNING: Read version %04x is different than current version %d!", verbuff, CURRENT_VERSION_SHORT);
+    }
+    /*printf("Allocating buffers CDATABUFF... ");
+    const char *cdatab;
+    printf("VERBUFF... ");
+    const short verb;
+    printf("DLENG and CDLEN...\n");
+    int dleng, cdlen;
+    printf("Reading CDLEN... ");
+    fread(&cdlen, sizeof(int), 1, fpa);
+    printf("Macro... ");
+    fread(macro, 1000, 1, fpa);
+    printf("Version... ");
+    fread(&verb, 2, 1, fpa);
+    printf("CDATABUFF...\n");
+    fread(cdatab, cdlen, 1, fpa);
+    printf("DEBUG: CDLEN = %d, Version = %04x\n", cdlen, verb);
+    switch (verb) {
+      case CURRENT_VERSION_SHORT:
+        printf("Version is OK\n");
+        break;
+    default:
+      printf("WARNING: Version %04x is different than current version %04x!\n", verb, CURRENT_VERSION_SHORT);
+      break;
+    }
+    printf("Decompressing...\n");
+    //const char *dcdata = DecompressData(cdatab, ftell(fpa), &dleng);
+    printf("Loading...\n");
+    memcpy(tiles,cdatab,cdlen);*/
+    printf("Done!\n");
     break;
   
   case KEY_E: //Eyedropeer
@@ -132,10 +235,10 @@ void handleKey(int key) {
   case KEY_SIX:
   case KEY_SEVEN:
     case KEY_EIGHT:
-    colorset[key-KEY_ONE] = selcolor;
+    selcolor = colorset[key-KEY_ONE];
     break;
   case KEY_SPACE:
-    printf("Executing macro\n");
+    printf("Executing macro big %d keys\n", macro_size);
     for (int i=0; i<macro_size; i++) {
       handleKey(macro[i]);
     }
@@ -168,7 +271,7 @@ void update() {
   if (recording & (key>0)) {
     macro[macro_size] = key;
     macro_size++;
-    printf("Recorded macro step %d as key %d.\n", macro_size-1, key);
+    printf("Recorded macro step %d as key %d.\n", macro_size-1, macro[macro_size-1]);
   }
 }
 
@@ -227,7 +330,7 @@ void draw() {
     for (int tiley=0; tiley<16; tiley++) {
       for (int x=0; x<8; x++) {
         for (int y=0; y<8; y++) {
-          DrawRectangle((x*2)+512+(tilex*16), (y*2)+(tiley*16), 2, 2, palette[tiles[tilex+(tiley*16)][x][y]]);
+          DrawRectangle((x*2)+512+(tilex*16), (y*2)+(tiley*16), 2, 2, palette[tiles[tilex+(tiley*16)][y][x]]);
         }
       }
     }
@@ -239,7 +342,7 @@ void draw() {
 }
 
 int main() {
-	InitWindow(768,256+64,"OpenPixel v0.12");
+	InitWindow(768,256+64,"KOPS v0.13");
 	SetTargetFPS(60);
 
 	while (!WindowShouldClose()) {
