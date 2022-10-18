@@ -13,8 +13,8 @@ int px, py = 0;
 #define MAXIMAGESIZE 256
 #define IMAGEPIXELSIZE (256/IMAGESIZE)
 
-char CURRENT_VERSION[] = {0x35,0x01}; //mp Mm (Stored in big endian)
-#define CURRENT_VERSION_SHORT 0x0135 //Mm mp
+char CURRENT_VERSION[] = {0x36,0x01}; //mp Mm (Stored in big endian)
+#define CURRENT_VERSION_SHORT 0x0136 //Mm mp
 
 int macro[1000];
 int macro_size;
@@ -42,6 +42,18 @@ int rx,ry;
 bool mirrored_mode = false;
 
 void handleKey(int key) {
+  
+  if (
+    key != 0 &
+    key != KEY_UP &
+    key != KEY_DOWN & 
+    key != KEY_LEFT &
+    key != KEY_RIGHT &
+    key != KEY_U
+  ) {
+    memcpy(undobuffer, tiles, MAXIMAGESIZE*MAXIMAGESIZE*257);
+    printf("DEBUG: Updated undo buffer\n");
+  }
   if (IsKeyDown(KEY_LEFT_CONTROL)) {
     switch (key) {
     /*case KEY_UP:
@@ -296,16 +308,6 @@ void handleKey(int key) {
     seltile++;
     break;
   }
-  }
-  if (
-    key != 0 &
-    key != KEY_UP &
-    key != KEY_DOWN & 
-    key != KEY_LEFT &
-    key != KEY_RIGHT
-  ) {
-    memcpy(undobuffer, tiles, MAXIMAGESIZE*MAXIMAGESIZE*257);
-    printf("DEBUG: Updated undo buffer\n");
   }
 }
 
