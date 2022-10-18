@@ -21,5 +21,4 @@ Shift M = Mask clipboard
 Shift R = Replace color
 Shift ZX = Set/Clear tilemap tile (v0.15 TODO)
 Shift E = Get tilemap tile (v0.15 TODO)
-Ctrl ↑↓←→ = Move tilemap tile (v0.15 TODO)
-Shift WASD = Move image (v0.14 TODO)
+Ctrl ↑↓←→ = Move image (v0.14 TODO)

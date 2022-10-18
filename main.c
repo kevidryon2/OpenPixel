@@ -8,11 +8,13 @@
 
 int px, py = 0;
 
+#define CURRTILE tiles[seltile]
+
 #define MAXIMAGESIZE 256
 #define IMAGEPIXELSIZE (256/IMAGESIZE)
 
-char CURRENT_VERSION[] = {0x30,0x01}; //pm mM (Stored in big endian)
-#define CURRENT_VERSION_SHORT 0x0130 //Mm mp
+char CURRENT_VERSION[] = {0x35,0x01}; //mp Mm (Stored in big endian)
+#define CURRENT_VERSION_SHORT 0x0135 //Mm mp
 
 int macro[1000];
 int macro_size;
@@ -33,16 +35,59 @@ unsigned char mapwx, mapwy, mapx, mapy;
 */
 unsigned int tiles[257][MAXIMAGESIZE][MAXIMAGESIZE]; //Last image is clipboard image
 
+unsigned int undobuffer[257][MAXIMAGESIZE][MAXIMAGESIZE];
+
+int rx,ry;
+
 bool mirrored_mode = false;
 
 void handleKey(int key) {
-  if (IsKeyDown(KEY_LEFT_SHIFT)) {
+  if (IsKeyDown(KEY_LEFT_CONTROL)) {
+    switch (key) {
+    /*case KEY_UP:
+      for (int x=0; x<IMAGESIZE; x++) {
+        for (int y=0; y<IMAGESIZE; y++) {
+          rx=(x<1)?IMAGESIZE:x;
+          ry=(y<1)?IMAGESIZE:y;
+          CURRTILE[ry-1][rx] =  CURRTILE[ry][rx];
+        }
+      }
+      break;
+      case KEY_DOWN:
+      for (int x=0; x<IMAGESIZE; x++) {
+        for (int y=0; y<IMAGESIZE; y++) {
+          rx=(x==IMAGESIZE)?0:x;
+          ry=(y==IMAGESIZE)?0:y;
+          CURRTILE[ry+1][x] =  CURRTILE[y][x];
+        }
+      }
+      break;
+      case KEY_LEFT:
+      for (int x=0; x<IMAGESIZE; x++) {
+        for (int y=0; y<IMAGESIZE; y++) {
+          rx=(x<1)?IMAGESIZE:x;
+          ry=(y<1)?IMAGESIZE:y;
+          CURRTILE[y][rx-1] =  CURRTILE[y][x];
+        }
+      }
+      break;
+      case KEY_RIGHT:
+      for (int x=0; x<IMAGESIZE; x++) {
+        for (int y=0; y<IMAGESIZE; y++) {
+          rx=(x==IMAGESIZE)?0:x;
+          ry=(y==IMAGESIZE)?0:y;
+          CURRTILE[y][rx+1] =  CURRTILE[y][x];
+        }
+      }
+      break;*/
+    }
+  } else if (IsKeyDown(KEY_LEFT_SHIFT)) {
     switch (key) {
     case KEY_O:
       for (int x=0; x<MAXIMAGESIZE; x++) {
         for (int y=0; y<MAXIMAGESIZE; y++) {
-          if (!tiles[seltile][y][x]) {
-            tiles[seltile][y][x] = tiles[256][y][x];
+          if (!CURRTILE[y][x]) {
+            CURRTILE[y][x] = tiles[256][y][x];
           }
         }
       }
@@ -50,8 +95,8 @@ void handleKey(int key) {
     case KEY_M:
       for (int x=0; x<MAXIMAGESIZE; x++) {
         for (int y=0; y<MAXIMAGESIZE; y++) {
-          if (tiles[seltile][y][x]) {
-            tiles[seltile][y][x] = tiles[256][y][x];
+          if (CURRTILE[y][x]) {
+            CURRTILE[y][x] = tiles[256][y][x];
           }
         }
       }
@@ -59,15 +104,15 @@ void handleKey(int key) {
     case KEY_D:
       for (int x=0; x<MAXIMAGESIZE; x++) {
         for (int y=0; y<MAXIMAGESIZE; y++) {
-          tiles[seltile][y][x] = 0;
+          CURRTILE[y][x] = 0;
         }
       }
       break;
     case KEY_C:
-      memcpy(tiles[256], tiles[seltile], MAXIMAGESIZE*MAXIMAGESIZE);
+      memcpy(tiles[256], CURRTILE, MAXIMAGESIZE*MAXIMAGESIZE);
       break;
       case KEY_V:
-      memcpy(tiles[seltile], tiles[256], MAXIMAGESIZE*MAXIMAGESIZE);
+      memcpy(CURRTILE, tiles[256], MAXIMAGESIZE*MAXIMAGESIZE);
       break;
       case KEY_UP:
       seltile-=16;
@@ -82,13 +127,12 @@ void handleKey(int key) {
       seltile++;
       break;
     case KEY_R:;
-      int old_color = tiles[seltile][py][px];
+      int old_color = CURRTILE[py][px];
       int new_color = selcolor;
       for (int x=0; x<IMAGESIZE; x++) {
         for (int y=0; y<IMAGESIZE; y++) {
-          if (tiles[seltile][y][x] == old_color) {
-            printf("%d;%d;%d\n",y,x,tiles[seltile][y][x]);
-            tiles[seltile][y][x] = new_color;
+          if (CURRTILE[y][x] == old_color) {
+            CURRTILE[y][x] = new_color;
           }
         }
       }
@@ -114,10 +158,10 @@ void handleKey(int key) {
   case KEY_RIGHT:
     px+=move_amount; break;
   case KEY_Z:
-    tiles[seltile][py][px] = selcolor;
+    CURRTILE[py][px] = selcolor;
     break;
   case KEY_X:
-    tiles[seltile][py][px] = 0;
+    CURRTILE[py][px] = 0;
     break;
   case KEY_M:
     mirrored_mode = !mirrored_mode;
@@ -151,10 +195,9 @@ void handleKey(int key) {
     selcolor=(selcolor+1)%256;
     break;
     
-  case KEY_U: //Undo (TODO v0.14)
-    break;
-    
-  case KEY_I: //Redo (TODO v0.14)
+  case KEY_U:
+  case KEY_I:
+    memcpy(CURRTILE, undobuffer, MAXIMAGESIZE*MAXIMAGESIZE);
     break;
     
   case KEY_S:; //Save 
@@ -162,12 +205,13 @@ void handleKey(int key) {
     //printf("Compressing...\n");
     int dlen;
     //const char *cdata = CompressData(tiles, 257*MAXIMAGESIZE*MAXIMAGESIZE, &dlen);
-    printf("Saving...\n");
+    printf("DEBUG: Saving...\n");
     fwrite(&dlen, sizeof(int), 1, fp);
-    fwrite(macro, 1000, 1, fp);
+    fwrite(&macro_size, sizeof(int), 1, fp);
+    fwrite(macro, 1000*sizeof(int), 1, fp);
     fwrite(CURRENT_VERSION, 2, 1, fp);
     fwrite(tiles, sizeof(tiles), 1, fp);
-    printf("Done! (File size is %ld bytes)\n", ftell(fp));
+    printf("DEBUG: Done! (File size is %ld bytes)\n", ftell(fp));
     fclose(fp);
     //free(cdata);
     break;
@@ -176,13 +220,14 @@ void handleKey(int key) {
     FILE *fpa = fopen("tileset.kops", "r");
     int datalength;
     short verbuff;
-    printf("Loading...\n");
+    printf("DEBUG: Loading file...\n");
     fread(&datalength, sizeof(int), 1, fpa);
-    fread(macro, 1000, 1, fpa);
+    fread(&macro_size, sizeof(int), 1, fpa);
+    fread(macro, 1000*sizeof(int), 1, fpa);
     fread(&verbuff, 2, 1, fpa);
     fread(tiles, sizeof(tiles), 1, fpa);
     if (verbuff != CURRENT_VERSION_SHORT) {
-      printf("WARNING: Read version %04x is different than current version %d!", verbuff, CURRENT_VERSION_SHORT);
+      printf("WARNING: Read version %04x is different than current version %04x!\n", verbuff, CURRENT_VERSION_SHORT);
     }
     /*printf("Allocating buffers CDATABUFF... ");
     const char *cdatab;
@@ -211,11 +256,11 @@ void handleKey(int key) {
     //const char *dcdata = DecompressData(cdatab, ftell(fpa), &dleng);
     printf("Loading...\n");
     memcpy(tiles,cdatab,cdlen);*/
-    printf("Done!\n");
+    printf("DEBUG: Done!\n");
     break;
   
   case KEY_E: //Eyedropeer
-    selcolor = tiles[seltile][py][px];
+    selcolor = CURRTILE[py][px];
     break;
   
   case KEY_KP_ADD: //Shrink sprite
@@ -238,7 +283,7 @@ void handleKey(int key) {
     selcolor = colorset[key-KEY_ONE];
     break;
   case KEY_SPACE:
-    printf("Executing macro big %d keys\n", macro_size);
+    printf("DEBUG: Executing macro big %d keys\n", macro_size);
     for (int i=0; i<macro_size; i++) {
       handleKey(macro[i]);
     }
@@ -251,6 +296,16 @@ void handleKey(int key) {
     seltile++;
     break;
   }
+  }
+  if (
+    key != 0 &
+    key != KEY_UP &
+    key != KEY_DOWN & 
+    key != KEY_LEFT &
+    key != KEY_RIGHT
+  ) {
+    memcpy(undobuffer, tiles, MAXIMAGESIZE*MAXIMAGESIZE*257);
+    printf("DEBUG: Updated undo buffer\n");
   }
 }
 
@@ -271,7 +326,7 @@ void update() {
   if (recording & (key>0)) {
     macro[macro_size] = key;
     macro_size++;
-    printf("Recorded macro step %d as key %d.\n", macro_size-1, macro[macro_size-1]);
+    printf("DEBUG: Recorded macro step %d as key %d.\n", macro_size-1, macro[macro_size-1]);
   }
 }
 
@@ -280,32 +335,32 @@ void draw() {
   if (mirrored_mode) {
     for (int x=0; x<IMAGESIZE; x++) {
       for (int y=0; y<IMAGESIZE; y++) {
-        unsigned char color = tiles[seltile][y][x];
+        unsigned char color = CURRTILE[y][x];
         DrawRectangle(x*(IMAGEPIXELSIZE/2), y*(IMAGEPIXELSIZE/2), IMAGEPIXELSIZE/2, IMAGEPIXELSIZE/2, palette[color]);
       }
     };
     for (int x=0; x<IMAGESIZE; x++) {
       for (int y=0; y<IMAGESIZE; y++) {
-        unsigned char color = tiles[seltile][y][x];
+        unsigned char color = CURRTILE[y][x];
         DrawRectangle(x*(IMAGEPIXELSIZE/2)+128, y*(IMAGEPIXELSIZE/2), IMAGEPIXELSIZE/2, IMAGEPIXELSIZE/2, palette[color]);
       }
     };
     for (int x=0; x<IMAGESIZE; x++) {
       for (int y=0; y<IMAGESIZE; y++) {
-        unsigned char color = tiles[seltile][y][x];
+        unsigned char color = CURRTILE[y][x];
         DrawRectangle(x*(IMAGEPIXELSIZE/2), y*(IMAGEPIXELSIZE/2)+128, IMAGEPIXELSIZE/2, IMAGEPIXELSIZE/2, palette[color]);
       }
     };
     for (int x=0; x<IMAGESIZE; x++) {
       for (int y=0; y<IMAGESIZE; y++) {
-        unsigned char color = tiles[seltile][y][x];
+        unsigned char color = CURRTILE[y][x];
         DrawRectangle(x*(IMAGEPIXELSIZE/2)+128, y*(IMAGEPIXELSIZE/2)+128, IMAGEPIXELSIZE/2, IMAGEPIXELSIZE/2, palette[color]);
       }
     };
   } else {
 	  for (int x=0; x<IMAGESIZE; x++) {
       for (int y=0; y<IMAGESIZE; y++) {
-        unsigned char color = tiles[seltile][y][x];
+        unsigned char color = CURRTILE[y][x];
         DrawRectangle(x*IMAGEPIXELSIZE, y*IMAGEPIXELSIZE, IMAGEPIXELSIZE, IMAGEPIXELSIZE, palette[color]);
       }
     }
@@ -342,7 +397,7 @@ void draw() {
 }
 
 int main() {
-	InitWindow(768,256+64,"KOPS v0.13");
+	InitWindow(768,256+64,"KOPS v0.14");
 	SetTargetFPS(60);
 
 	while (!WindowShouldClose()) {
