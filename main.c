@@ -10,15 +10,17 @@ int px, py = 0;
 
 #define CURRTILE tiles[seltile]
 
-#define MAXIMAGESIZE 256
+#define MAXIMAGESIZE 64
 #define IMAGEPIXELSIZE (256/IMAGESIZE)
 
-char CURRENT_VERSION[] = {0x36,0x01}; //mp Mm (Stored in big endian)
-#define CURRENT_VERSION_SHORT 0x0136 //Mm mp
+char CURRENT_VERSION[] = {0x40,0x01}; //mp Mm (Stored in big endian)
+#define CURRENT_VERSION_SHORT 0x0140 //Mm mp
 
 int macro[1000];
 int macro_size;
 bool recording;
+
+unsigned int movebuffer[MAXIMAGESIZE];
 
 int IMAGESIZE = 8;
 
@@ -56,45 +58,53 @@ void handleKey(int key) {
   }
   if (IsKeyDown(KEY_LEFT_CONTROL)) {
     switch (key) {
-    /*case KEY_UP:
+	    case KEY_H:
+		    for (int x=0; x<IMAGESIZE; x++) {
+		    	for (int y=0; y<IMAGESIZE; y++) {
+				printf("%02x", CURRTILE[x][y]);
+			}
+		    }
+		    printf("\n");
+		    break;
+	    case KEY_E:;
+      Image imgg = GenImageColor(IMAGESIZE, IMAGESIZE, BLACK);
       for (int x=0; x<IMAGESIZE; x++) {
         for (int y=0; y<IMAGESIZE; y++) {
-          rx=(x<1)?IMAGESIZE:x;
-          ry=(y<1)?IMAGESIZE:y;
-          CURRTILE[ry-1][rx] =  CURRTILE[ry][rx];
+          ImageDrawPixel(&imgg, x, y, palette[CURRTILE[y][x]]);
         }
       }
+      ExportImage(imgg, "tile.png");
       break;
-      case KEY_DOWN:
+    /*case KEY_LEFT:;
+      int txa,tya;
       for (int x=0; x<IMAGESIZE; x++) {
         for (int y=0; y<IMAGESIZE; y++) {
-          rx=(x==IMAGESIZE)?0:x;
-          ry=(y==IMAGESIZE)?0:y;
-          CURRTILE[ry+1][x] =  CURRTILE[y][x];
+          if (!x) {
+            movebuffer[y] = CURRTILE[y][x];
+          }
+          txa=(!x)?IMAGESIZE:x;
+          CURRTILE[y][txa-1] = CURRTILE[y][x];
+          if (x==IMAGESIZE-1) {
+            CURRTILE[y][x] = movebuffer[y];
+          }
         }
-      }
-      break;
-      case KEY_LEFT:
-      for (int x=0; x<IMAGESIZE; x++) {
-        for (int y=0; y<IMAGESIZE; y++) {
-          rx=(x<1)?IMAGESIZE:x;
-          ry=(y<1)?IMAGESIZE:y;
-          CURRTILE[y][rx-1] =  CURRTILE[y][x];
-        }
-      }
-      break;
-      case KEY_RIGHT:
-      for (int x=0; x<IMAGESIZE; x++) {
-        for (int y=0; y<IMAGESIZE; y++) {
-          rx=(x==IMAGESIZE)?0:x;
-          ry=(y==IMAGESIZE)?0:y;
-          CURRTILE[y][rx+1] =  CURRTILE[y][x];
-        }
-      }
-      break;*/
+      }*/
     }
   } else if (IsKeyDown(KEY_LEFT_SHIFT)) {
     switch (key) {
+    case KEY_S:;
+      Image img = GenImageColor(128, 128, BLACK);
+      for (int tilex=0; tilex<16; tilex++) {
+        for (int tiley=0; tiley<16; tiley++) {
+          for (int x=0; x<8; x++) {
+            for (int y=0; y<8; y++) {
+              ImageDrawPixel(&img, x+(tilex*8), y+(tiley*8), palette[tiles[tilex+(tiley*8)][y][x]]);
+            }
+          }
+        }
+      }
+      ExportImage(img, "tileset.png");
+      break;
     case KEY_O:
       for (int x=0; x<MAXIMAGESIZE; x++) {
         for (int y=0; y<MAXIMAGESIZE; y++) {
@@ -120,9 +130,10 @@ void handleKey(int key) {
         }
       }
       break;
-    case KEY_C:
-      memcpy(tiles[256], CURRTILE, MAXIMAGESIZE*MAXIMAGESIZE);
+      case KEY_C: {
+		  memcpy(tiles[256], CURRTILE, MAXIMAGESIZE*MAXIMAGESIZE);
       break;
+      }
       case KEY_V:
       memcpy(CURRTILE, tiles[256], MAXIMAGESIZE*MAXIMAGESIZE);
       break;
@@ -218,10 +229,9 @@ void handleKey(int key) {
     int dlen;
     //const char *cdata = CompressData(tiles, 257*MAXIMAGESIZE*MAXIMAGESIZE, &dlen);
     printf("DEBUG: Saving...\n");
-    fwrite(&dlen, sizeof(int), 1, fp);
+    fwrite(CURRENT_VERSION, 2, 1, fp);
     fwrite(&macro_size, sizeof(int), 1, fp);
     fwrite(macro, 1000*sizeof(int), 1, fp);
-    fwrite(CURRENT_VERSION, 2, 1, fp);
     fwrite(tiles, sizeof(tiles), 1, fp);
     printf("DEBUG: Done! (File size is %ld bytes)\n", ftell(fp));
     fclose(fp);
@@ -233,10 +243,9 @@ void handleKey(int key) {
     int datalength;
     short verbuff;
     printf("DEBUG: Loading file...\n");
-    fread(&datalength, sizeof(int), 1, fpa);
+    fread(&verbuff, 2, 1, fpa);
     fread(&macro_size, sizeof(int), 1, fpa);
     fread(macro, 1000*sizeof(int), 1, fpa);
-    fread(&verbuff, 2, 1, fpa);
     fread(tiles, sizeof(tiles), 1, fpa);
     if (verbuff != CURRENT_VERSION_SHORT) {
       printf("WARNING: Read version %04x is different than current version %04x!\n", verbuff, CURRENT_VERSION_SHORT);
@@ -297,7 +306,9 @@ void handleKey(int key) {
   case KEY_SPACE:
     printf("DEBUG: Executing macro big %d keys\n", macro_size);
     for (int i=0; i<macro_size; i++) {
-      handleKey(macro[i]);
+      if (macro[i] != KEY_SPACE) {
+        handleKey(macro[i]);
+      }
     }
     break;
   
@@ -307,6 +318,12 @@ void handleKey(int key) {
   case KEY_H:
     seltile++;
     break;
+  case KEY_C:
+      memcpy(tiles[256], CURRTILE, MAXIMAGESIZE*MAXIMAGESIZE);
+      break;
+  case KEY_V:
+      memcpy(CURRTILE, tiles[256], MAXIMAGESIZE*MAXIMAGESIZE);
+      break;
   }
   }
 }
@@ -398,9 +415,24 @@ void draw() {
   }
 }
 
-int main() {
+int main(int argc, char **argv) {
 	InitWindow(768,256+64,"KOPS v0.14");
 	SetTargetFPS(60);
+
+  if (argc>1) {
+    FILE *fp = fopen(argv[1], "r");
+    int datalength;
+    short verbuff;
+    printf("DEBUG: Loading file...\n");
+    fread(&verbuff, 2, 1, fp);
+    fread(&macro_size, sizeof(int), 1, fp);
+    fread(macro, 1000*sizeof(int), 1, fp);
+    fread(tiles, sizeof(tiles), 1, fp);
+    if (verbuff != CURRENT_VERSION_SHORT) {
+      printf("WARNING: Read version %04x is different than current version %04x!\n", verbuff, CURRENT_VERSION_SHORT);
+    }
+
+  }
 
 	while (!WindowShouldClose()) {
 		update();
